@@ -57,7 +57,7 @@ The images are snapshots of a neutral demo dashboard. In a real dashboard everyt
      - url: /local/season-overlay-card.js
        type: module
    ```
-3. **Reload the page:** Press `Ctrl + F5` in the browser. In the companion app, close the app completely and reopen it, and clear the cache if necessary. For updates, a version suffix on the URL helps, e.g. `/local/season-overlay-card.js?v=1.6.0`.
+3. **Reload the page:** Press `Ctrl + F5` in the browser. In the companion app, close the app completely and reopen it, and clear the cache if necessary. For updates, a version suffix on the URL helps, e.g. `/local/season-overlay-card.js?v=1.6.1`.
 4. **Add the card:** Open the dashboard, click *Edit*, *Add card*, scroll to the bottom and choose *Manual*, then enter the YAML:
 
    ```yaml
@@ -65,7 +65,7 @@ The images are snapshots of a neutral demo dashboard. In a real dashboard everyt
    weather_entity: weather.home
    ```
 
-   Add the card to **every view** in which the effect should run. The card itself is invisible. To change it later, use the dashboard's raw configuration editor.
+   Add the card to **every view** in which the effect should run. While the dashboard is not being edited, the card takes no space and only the effect is visible. In edit mode a **Season Overlay** placeholder appears, so you can move, change, or delete the card like any other card — the raw configuration editor is not required. Leave edit mode and the placeholder disappears again. The effect pauses while you are editing, so the placeholder stays easy to see.
 
 You can find the entity ID of your weather integration under *Developer tools → States* (search for `weather.`).
 

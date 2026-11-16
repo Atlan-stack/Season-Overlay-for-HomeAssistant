@@ -57,7 +57,7 @@ Die Bilder sind Momentaufnahmen eines neutralen Demo-Dashboards, im echten Dashb
      - url: /local/season-overlay-card.js
        type: module
    ```
-3. **Seite neu laden:** Mit `Strg + F5` im Browser. In der Companion-App die App komplett schließen und neu öffnen, notfalls den Cache leeren. Bei Updates hilft ein Versionsanhang an der URL, z. B. `/local/season-overlay-card.js?v=1.6.0`.
+3. **Seite neu laden:** Mit `Strg + F5` im Browser. In der Companion-App die App komplett schließen und neu öffnen, notfalls den Cache leeren. Bei Updates hilft ein Versionsanhang an der URL, z. B. `/local/season-overlay-card.js?v=1.6.1`.
 4. **Karte einfügen:** Dashboard öffnen, *Bearbeiten*, *Karte hinzufügen*, ganz unten *Manuell* wählen und den YAML-Code eintragen:
 
    ```yaml
@@ -65,7 +65,7 @@ Die Bilder sind Momentaufnahmen eines neutralen Demo-Dashboards, im echten Dashb
    weather_entity: weather.home
    ```
 
-   Füge die Karte in **jede Ansicht** ein, in der der Effekt laufen soll. Die Karte selbst ist unsichtbar. Zum späteren Ändern nutzt du den Raw-Konfigurationseditor des Dashboards.
+   Füge die Karte in **jede Ansicht** ein, in der der Effekt laufen soll. Solange das Dashboard nicht bearbeitet wird, belegt die Karte keinen Platz und nur der Effekt ist sichtbar. Im Bearbeiten-Modus erscheint ein Platzhalter **Season Overlay**, den du wie jede andere Karte verschieben, ändern oder löschen kannst — der Raw-Konfigurationseditor ist dafür nicht nötig. Beendest du den Bearbeiten-Modus, verschwindet der Platzhalter wieder. Der Effekt pausiert während des Bearbeitens, damit der Platzhalter gut zu sehen ist.
 
 Die Entity-ID deiner Wetter-Integration findest du unter *Entwicklerwerkzeuge → Zustände* (nach `weather.` suchen).
 

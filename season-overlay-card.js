@@ -1,5 +1,5 @@
 /*
- * season-overlay-card.js  (v1.6.0)
+ * season-overlay-card.js  (v1.6.1)
  * Dezentes Vollbild-Overlay für Home Assistant (Dashboard bleibt sichtbar und bedienbar):
  *  - Jahreszeiten: Herbst = Laub, Frühling = Blüten, Winter = funkelnde Eiskristalle
  *  - Wetter: Regen, Schnee, Hagel, Wolken & Nebel an den Bildschirmrändern,
@@ -9,6 +9,9 @@
  *  - Feiertage/Bräuche (Bayern): Neujahr/Silvester, Heilige Drei Könige, Valentinstag,
  *    Fasching, Ostern, Halloween, Martini, Nikolaus, Advent/Weihnachten
  * Beim Antippen blendet der Effekt aus und kommt nach X Minuten wieder.
+ * Die Karte selbst belegt im normalen Betrieb keinen Platz. Im Bearbeiten-Modus
+ * (Home Assistant setzt preview/editMode) erscheint ein Platzhalter, damit man
+ * sie verschieben, ändern und löschen kann. Der Effekt pausiert solange.
  */
 
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
@@ -349,6 +352,190 @@ const DRAW = {
 };
 
 class SeasonOverlayCard extends HTMLElement {
+  // Home Assistant setzt preview (und aus Kompatibilität editMode) auf true,
+  // solange das Dashboard bearbeitet wird oder die Karte im Editor liegt.
+  set preview(value) {
+    this._previewKnown = true;
+    const next = !!value;
+    if (this._preview === next) return;
+    this._preview = next;
+    this._syncChrome();
+  }
+
+  get preview() {
+    return !!this._preview;
+  }
+
+  set editMode(value) {
+    this._editModeKnown = true;
+    const next = !!value;
+    if (this._editMode === next) return;
+    this._editMode = next;
+    this._syncChrome();
+  }
+
+  get editMode() {
+    return !!this._editMode;
+  }
+
+  _uiLang() {
+    const hass = this._hass;
+    const lang = hass && (hass.language || (hass.locale && hass.locale.language));
+    return String(lang || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+  }
+
+  _isEditing() {
+    if (this._preview || this._editMode) return true;
+    // Aktuelles Lovelace setzt die Eigenschaften immer. Fehlen sie (ältere
+    // Versionen), gilt der Bearbeiten-Modus des Dashboards.
+    if (this._previewKnown || this._editModeKnown) return false;
+    return this._dashboardEditing();
+  }
+
+  _dashboardEditing() {
+    let node = this;
+    const seen = new Set();
+    while (node && !seen.has(node)) {
+      seen.add(node);
+      if (node.lovelace && typeof node.lovelace.editMode === 'boolean') return node.lovelace.editMode;
+      if (node.parentElement) node = node.parentElement;
+      else {
+        const root = typeof node.getRootNode === 'function' ? node.getRootNode() : null;
+        node = root && root.host ? root.host : null;
+      }
+    }
+    const ha = document.querySelector('home-assistant');
+    const main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+    const panel = main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace');
+    const root = panel && panel.shadowRoot && panel.shadowRoot.querySelector('hui-root');
+    return !!(root && root.lovelace && root.lovelace.editMode);
+  }
+
+  _inEditorDialog() {
+    let node = this;
+    const seen = new Set();
+    while (node && !seen.has(node)) {
+      seen.add(node);
+      const name = node.localName || '';
+      if (
+        name === 'hui-dialog-edit-card' ||
+        name === 'hui-dialog-suggest-card' ||
+        name === 'hui-card-preview' ||
+        name === 'ha-dialog'
+      ) {
+        return true;
+      }
+      if (node.parentElement) node = node.parentElement;
+      else {
+        const root = typeof node.getRootNode === 'function' ? node.getRootNode() : null;
+        node = root && root.host ? root.host : null;
+      }
+    }
+    return false;
+  }
+
+  _ensureBadge() {
+    if (this._badge) return this._badge;
+    const badge = document.createElement('div');
+    badge.style.cssText = [
+      'display:none',
+      'align-items:center',
+      'gap:12px',
+      'box-sizing:border-box',
+      'width:100%',
+      'height:100%',
+      'min-height:88px',
+      'margin:0',
+      'padding:12px 16px',
+      'border-radius:var(--ha-card-border-radius, 12px)',
+      'background:var(--ha-card-background, var(--card-background-color, #fff))',
+      'color:var(--primary-text-color, #212121)',
+      'border:1px dashed var(--divider-color, rgba(0,0,0,.24))',
+      'box-shadow:var(--ha-card-box-shadow, none)',
+      'font-family:var(--ha-font-family-body, var(--primary-font-family, sans-serif))',
+    ].join(';');
+    const icon = document.createElement('div');
+    icon.style.cssText = 'flex:0 0 auto;width:36px;height:36px;color:var(--primary-color, #03a9f4)';
+    icon.innerHTML =
+      '<svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true">' +
+      '<path fill="currentColor" d="M12 2c.4 2.4 1.2 4 2.6 5.2C16.2 8.4 18 9 21 9c-2.2.6-3.8 1.6-4.8 3.2C15 14 14.4 16 14 19c-.5-2.6-1.5-4.4-3.2-5.6C9 12.2 7 11.6 4 11c2.6-.4 4.4-1.3 5.6-2.8C10.8 6.6 11.4 4.6 12 2z"/>' +
+      '</svg>';
+    const text = document.createElement('div');
+    text.style.cssText = 'min-width:0';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:16px;font-weight:500;line-height:1.2';
+    const hint = document.createElement('div');
+    hint.style.cssText = 'margin-top:4px;font-size:13px;line-height:1.35;color:var(--secondary-text-color, #727272)';
+    text.append(title, hint);
+    badge.append(icon, text);
+    this.appendChild(badge);
+    this._badge = badge;
+    this._badgeTitle = title;
+    this._badgeHint = hint;
+    return badge;
+  }
+
+  // Canvas-Zustand immer anwenden. Der Platzhalter kann schon gesetzt sein,
+  // bevor das Canvas (erst in connectedCallback) existiert — ein früher Return
+  // würde den Effekt im Bearbeiten-Modus sonst weiterlaufen lassen.
+  // _start nur beim Verlassen des Bearbeiten-Modus, sonst würde jedes
+  // hass-Update die Pause nach dem Antippen aufheben.
+  _applyCanvas(editing) {
+    if (!this._canvas) return;
+    const wasHidden = this._canvas.style.visibility === 'hidden';
+    this._canvas.style.visibility = editing ? 'hidden' : '';
+    if (editing) {
+      this._running = false;
+      if (!wasHidden && this._ctx) {
+        this._ctx.setTransform(this._dpr || 1, 0, 0, this._dpr || 1, 0, 0);
+        this._ctx.clearRect(0, 0, this._w || 0, this._h || 0);
+      }
+    } else if (wasHidden) {
+      this._start();
+    }
+  }
+
+  _syncChrome() {
+    const editing = this._isEditing();
+    const lang = this._uiLang();
+    const same = editing === this._badgeEditing && lang === this._badgeLang;
+    const editingChanged = editing !== this._badgeEditing;
+    this._badgeEditing = editing;
+    this._badgeLang = lang;
+
+    if (!same) {
+      this.style.display = editing ? 'block' : 'none';
+      this.style.boxSizing = 'border-box';
+      this.style.height = editing ? '100%' : '';
+      this.style.minHeight = editing ? '88px' : '';
+
+      const badge = this._ensureBadge();
+      badge.style.display = editing ? 'flex' : 'none';
+      this._badgeTitle.textContent = 'Season Overlay';
+      this._badgeHint.textContent = lang === 'de'
+        ? 'Sichtbar nur beim Bearbeiten. Karte auswählen zum Ändern oder Entfernen.'
+        : 'Visible only while editing. Select this card to change or remove it.';
+    }
+
+    this._applyCanvas(editing);
+
+    if (editingChanged && this.isConnected) {
+      this.dispatchEvent(new Event('card-updated', { bubbles: true, composed: true }));
+    }
+  }
+
+  _armEditWatch() {
+    if (this._editWatch || this._previewKnown || this._editModeKnown) return;
+    this._editWatch = setInterval(() => {
+      if (!this.isConnected || this._previewKnown || this._editModeKnown) {
+        clearInterval(this._editWatch);
+        this._editWatch = null;
+        return;
+      }
+      this._syncChrome();
+    }, 500);
+  }
+
   setConfig(config) {
     this._config = {
       season_entity: 'sensor.season', // optional, sonst Datum
@@ -401,11 +588,11 @@ class SeasonOverlayCard extends HTMLElement {
     };
     // Kompatibilität: früheres winter_snow: false schaltet den Winter-Effekt aus
     if (config.winter_effect === undefined && config.winter_snow === false) this._config.winter_effect = 'none';
-    this.style.display = 'none';
     this._season = this._config.test_season || seasonFromDate();
     this._weather = this._config.test_weather || 'none';
     this._holiday = this._currentHoliday();
     this._birthday = this._currentBirthday();
+    this._syncChrome();
     if (this._canvas) this._rebuild();
   }
 
@@ -423,6 +610,7 @@ class SeasonOverlayCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._syncChrome();
     const c = this._config;
     if (!c) return;
     let season = c.test_season;
@@ -453,11 +641,22 @@ class SeasonOverlayCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 0;
+    return this._isEditing() ? 2 : 0;
+  }
+
+  // Sections-Ansicht: im Bearbeiten-Modus zwei Zeilen, sonst automatische Höhe
+  // (zusammen mit display:none belegt die Karte dann keinen Platz).
+  getGridOptions() {
+    if (!this._isEditing()) return {};
+    return { rows: 2, min_rows: 2 };
   }
 
   connectedCallback() {
-    if (this._canvas) return;
+    this._armEditWatch();
+    if (this._canvas || this._inEditorDialog()) {
+      this._syncChrome();
+      return;
+    }
     const c = document.createElement('canvas');
     c.style.cssText =
       'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;' +
@@ -485,12 +684,16 @@ class SeasonOverlayCard extends HTMLElement {
     window.addEventListener('pointerdown', this._onTap, { capture: true, passive: true });
 
     this._resize();
-    this._start();
+    this._syncChrome();
   }
 
   disconnectedCallback() {
-    window.removeEventListener('resize', this._onResize);
-    window.removeEventListener('pointerdown', this._onTap, { capture: true });
+    if (this._editWatch) {
+      clearInterval(this._editWatch);
+      this._editWatch = null;
+    }
+    if (this._onResize) window.removeEventListener('resize', this._onResize);
+    if (this._onTap) window.removeEventListener('pointerdown', this._onTap, { capture: true });
     clearTimeout(this._timer);
     this._running = false;
     if (this._canvas) this._canvas.remove();
@@ -599,7 +802,7 @@ class SeasonOverlayCard extends HTMLElement {
   }
 
   _start() {
-    if (this._running || !this._canvas) return;
+    if (this._isEditing() || this._running || !this._canvas) return;
     this._running = true;
     this._last = null;
     requestAnimationFrame((t) => this._tick(t));
